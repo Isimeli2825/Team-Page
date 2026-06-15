@@ -1,0 +1,212 @@
+<?php
+
+/**
+ * @file
+ * Contains hook_theme() and other module-level hooks for team_page.
+ *
+ * This module provides a custom Team Page with:
+ * - A theme hook for the team-page template
+ * - Proper variable definitions for twig debugging
+ * - Cache metadata support
+ */
+
+/**
+ * Implements hook_theme().
+ *
+ * Registers the 'team_page' theme hook so Drupal knows about our template.
+ *
+ * Architecture decision:
+ * We use hook_theme() instead of a #type render element because this is a
+ * standalone page-level template. The variables are explicitly declared here
+ * to enable proper Twig debugging ({{ dump() }}) and theme suggestions.
+ *
+ * @param array $existing
+ *   An array of existing implementations.
+ * @param string $type
+ *   The type of theme implementation ('module', 'base_theme_engine', etc.).
+ * @param string $theme
+ *   The machine name of the theme.
+ * @param string $path
+ *   The path to the module.
+ *
+ * @return array
+ *   An associative array of theme hook definitions.
+ */
+function team_page_theme(array $existing, string $type, string $theme, string $path): array {
+  return [
+    'team_page' => [
+      'variables' => [
+        'page_title' => NULL,
+        'page_description' => NULL,
+        'members' => [],
+        'departments' => [],
+        'active_department' => NULL,
+        'teams' => [],
+        'show_filters' => TRUE,
+        'show_modals' => TRUE,
+        'grid_columns' => 3,
+      ],
+      'template' => 'team-page',
+      'path' => $path . '/templates',
+      // Enable theme suggestions so themes can override with:
+      //   team-page--{department}.html.twig
+      'base hook' => 'team_page',
+    ],
+  ];
+}
+
+/**
+ * Implements hook_theme_suggestions_HOOK() for team_page.
+ *
+ * Provides theme suggestions based on the active department filter,
+ * allowing themes to override rendering for specific departments.
+ *
+ * Example: team-page--executive-leadership.html.twig
+ */
+function team_page_theme_suggestions_team_page(array $variables): array {
+  $suggestions = [];
+
+  if (!empty($variables['active_department'])) {
+    $suggestion = \Drupal\Component\Utility\Html::cleanCssIdentifier(
+      strtolower($variables['active_department'])
+    );
+    $suggestions[] = 'team_page__' . $suggestion;
+  }
+
+  return $suggestions;
+}
+
+/**
+ * Implements hook_preprocess_HOOK() for team_page.
+ *
+ * Preprocesses variables for the team_page template.
+ * This is where we transform raw data into template-friendly variables,
+ * ensuring logic stays out of Twig templates.
+ */
+function team_page_preprocess_team_page(array &$variables): void {
+  // Ensure members is always an array.
+  $variables['members'] = $variables['members'] ?? [];
+
+  // Generate safe URLs for profile images.
+  foreach ($variables['members'] as &$member) {
+    // Ensure all necessary keys exist with defaults.
+    $member += [
+      'name' => '',
+      'position' => '',
+      'bio' => '',
+      'image' => '',
+      'image_alt' => t('Profile photo of @name', ['@name' => $member['name'] ?? '']),
+      'email' => '',
+      'socials' => [],
+      'department' => '',
+      'cta' => NULL,
+    ];
+
+    // Generate initials fallback from name.
+    if (!empty($member['name'])) {
+      $names = explode(' ', $member['name']);
+      $initials = '';
+      foreach ($names as $n) {
+        if (!empty($n)) {
+          $initials .= mb_strtoupper(mb_substr($n, 0, 1));
+        }
+      }
+      $member['initials'] = mb_substr($initials, 0, 2);
+    }
+    else {
+      $member['initials'] = '?';
+    }
+
+    // Create a unique HTML ID for modal targeting.
+    $member['html_id'] = \Drupal\Component\Utility\Html::getUniqueId(
+      'team-member-' . \Drupal\Component\Utility\Html::cleanCssIdentifier(
+        strtolower($member['name'])
+      )
+    );
+  }
+  unset($member);
+
+  // Rebuild teams from the enriched members array.
+  // This ensures preprocess-added data (html_id, initials, image_alt) flows
+  // through to the template which iterates over teams, not the flat members list.
+  $teams = [];
+  $preserved_order = $variables['teams'];
+  foreach ($variables['members'] as $member) {
+    $dept = !empty($member['department']) ? $member['department'] : t('Other');
+    if (!isset($teams[$dept])) {
+      $teams[$dept] = [
+        'department' => $dept,
+        'members' => [],
+      ];
+    }
+    $teams[$dept]['members'][] = $member;
+  }
+
+  // Preserve the original department ordering from the service
+  // (Executive Leadership first, then alphabetical).
+  $variables['teams'] = [];
+  foreach ($preserved_order as $dept_name => $dept_data) {
+    if (isset($teams[$dept_name])) {
+      $variables['teams'][$dept_name] = $teams[$dept_name];
+      unset($teams[$dept_name]);
+    }
+  }
+  // Append any departments that weren't in the preserved order.
+  foreach ($teams as $dept_name => $dept_data) {
+    $variables['teams'][$dept_name] = $dept_data;
+  }
+
+  // Ensure departments list exists.
+  if (empty($variables['departments'])) {
+    $variables['departments'] = array_keys($variables['teams']);
+  }
+
+  // Structured data for JSON-LD schema.org markup (SEO enhancement).
+  $schema_members = [];
+  foreach ($variables['members'] as $member) {
+    $schema_members[] = [
+      '@type' => 'Person',
+      'name' => $member['name'] ?? '',
+      'jobTitle' => $member['position'] ?? '',
+      'description' => isset($member['bio']) ? strip_tags($member['bio']) : '',
+      'email' => $member['email'] ?? '',
+      'department' => $member['department'] ?? '',
+    ];
+  }
+
+  $variables['#attached']['html_head'][] = [
+    [
+      '#tag' => 'script',
+      '#attributes' => [
+        'type' => 'application/ld+json',
+      ],
+      '#value' => json_encode([
+        '@context' => 'https://schema.org',
+        '@type' => 'ItemList',
+        'itemListElement' => array_map(function ($index, $member) {
+          return [
+            '@type' => 'ListItem',
+            'position' => $index + 1,
+            'item' => [
+              '@type' => 'Person',
+              'name' => $member['name'] ?? '',
+              'jobTitle' => $member['jobTitle'] ?? ($member['position'] ?? ''),
+              'description' => isset($member['description']) ? strip_tags($member['description']) : (isset($member['bio']) ? strip_tags($member['bio']) : ''),
+              'email' => $member['email'] ?? '',
+              'department' => $member['department'] ?? '',
+            ],
+          ];
+        }, array_keys($schema_members), $schema_members),
+      ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT),
+    ],
+    'team_page_schema_org',
+  ];
+
+  // Pass settings to JavaScript for filtering feature.
+  $variables['#attached']['drupalSettings']['team_page'] = [
+    'departments' => $variables['departments'],
+    'show_filter' => $variables['show_filters'],
+    'filter_label' => t('Filter by department'),
+    'all_label' => t('All'),
+  ];
+}

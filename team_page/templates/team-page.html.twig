@@ -1,0 +1,372 @@
+{#
+/**
+ * @file
+ * Default theme implementation for the Team Page.
+ *
+ * Available variables:
+ * - page_title: The title of the team page (string).
+ * - page_description: Subtitle text (string).
+ * - members: Array of all team member data.
+ * - departments: Array of unique department names.
+ * - active_department: Currently selected department filter (string|null).
+ * - teams: Array of departments, each containing department name and members.
+ * - show_filters: Whether to show the department filter buttons (bool).
+ * - show_modals: Whether to enable modal popups for member details (bool).
+ * - grid_columns: Number of grid columns (int, default 3).
+ *
+ * Each member array contains:
+ * - name: Full name (string)
+ * - position: Job title (string)
+ * - bio: Biography text (string, may contain HTML)
+ * - image: Profile image URL or empty for initials fallback (string)
+ * - image_alt: Alt text for the image (string)
+ * - initials: First and last name initials (string)
+ * - html_id: Unique HTML ID for modal targeting (string)
+ * - email: Email address (string)
+ * - socials: Array of social media links (key => URL)
+ * - department: Department name (string)
+ * - cta: Call-to-action array with 'text' and 'url', or NULL
+ *
+ * Each team array contains:
+ * - department: Department name (string)
+ * - members: Array of member data arrays
+ *
+ * @see team_page_preprocess_team_page()
+ * @see team-page.css
+ * @see team-page.js
+ *
+ * @ingroup themeable
+ */
+#}
+
+{#
+  ---------------------------------------------------------------------------
+  Team Page - Main Wrapper
+  ---------------------------------------------------------------------------
+  Using BEM naming convention for CSS classes.
+  All user-facing text is passed through the 't' filter for translation.
+  All dynamic content is escaped via default Twig auto-escaping.
+  ---------------------------------------------------------------------------
+#}
+
+{# Render the structured data (JSON-LD) from preprocess #}
+{{ attach_library('team_page/team-page') }}
+
+<div class="team-page" role="main" aria-label="{{ 'Team page'|t }}">
+
+  {#
+    -------------------------------------------------------------------------
+    Page Header
+    -------------------------------------------------------------------------
+  #}
+  <header class="team-page__header">
+    <h1 class="team-page__title">{{ page_title }}</h1>
+    {% if page_description %}
+      <p class="team-page__description">{{ page_description }}</p>
+    {% endif %}
+  </header>
+
+  {#
+    -------------------------------------------------------------------------
+    Department Filter
+    -------------------------------------------------------------------------
+    Progressive enhancement: the filter buttons are always rendered but
+    require JavaScript to function. Without JS, all members are shown.
+    -------------------------------------------------------------------------
+  #}
+  {% if show_filters and departments|length > 1 %}
+    <nav class="team-page__filters" role="tablist" aria-label="{{ 'Filter team members by department'|t }}">
+      <button
+        class="team-page__filter team-page__filter--active"
+        type="button"
+        role="tab"
+        aria-selected="true"
+        aria-controls="team-page-grid"
+        data-department="all"
+      >
+        {{ 'All'|t }}
+      </button>
+      {% for department in departments %}
+        <button
+          class="team-page__filter"
+          type="button"
+          role="tab"
+          aria-selected="false"
+          aria-controls="team-page-grid"
+          data-department="{{ department|clean_class }}"
+        >
+          {{ department }}
+        </button>
+      {% endfor %}
+    </nav>
+  {% endif %}
+
+  {#
+    -------------------------------------------------------------------------
+    Team Members Grid
+    -------------------------------------------------------------------------
+    CSS Grid layout — columns controlled by data attribute for JS filter.
+    The `data-team-department` attribute is used by JavaScript filtering.
+    -------------------------------------------------------------------------
+  #}
+  <div
+    id="team-page-grid"
+    class="team-page__grid"
+    data-columns="{{ grid_columns }}"
+    role="list"
+    aria-label="{{ 'Team members'|t }}"
+  >
+    {% for team in teams %}
+      {# Department section heading #}
+      <div class="team-page__section" role="listitem" aria-label="{{ 'Department section'|t }}">
+        <h2 class="team-page__section-title">{{ team.department }}</h2>
+
+        <div class="team-page__card-grid">
+          {% for member in team.members %}
+            {#
+              -----------------------------------------------------------------
+              Team Member Card
+              -----------------------------------------------------------------
+              Each card is a self-contained component with:
+              - Profile image (or initials fallback)
+              - Name and position
+              - Short bio (truncated)
+              - Social links
+              - Optional CTA button
+              -----------------------------------------------------------------
+            #}
+            <article
+              class="team-page__card"
+              data-team-department="{{ member.department|clean_class }}"
+              data-team-member="{{ member.html_id }}"
+              aria-labelledby="{{ member.html_id }}-name"
+            >
+              {# Profile Image or Initials Fallback #}
+              <div class="team-page__card-image-wrapper">
+                {% if member.image %}
+                  <img
+                    class="team-page__card-image"
+                    src="{{ member.image }}"
+                    alt="{{ member.image_alt }}"
+                    loading="lazy"
+                    width="300"
+                    height="300"
+                  />
+                {% else %}
+                  <div
+                    class="team-page__card-initials"
+                    role="img"
+                    aria-label="{{ 'Profile picture placeholder for @name'|t({'@name': member.name}) }}"
+                  >
+                    <span class="team-page__card-initials-text" aria-hidden="true">{{ member.initials }}</span>
+                  </div>
+                {% endif %}
+
+                {# Social links overlay on hover #}
+                {% if member.socials|length > 0 %}
+                  <div class="team-page__card-socials">
+                    {% for platform, url in member.socials %}
+                      <a
+                        class="team-page__card-social-link"
+                        href="{{ url }}"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label="{{ '@name on @platform'|t({'@name': member.name, '@platform': platform|capitalize}) }}"
+                      >
+                        {# Simple SVG icons per platform #}
+                        {% if platform == 'linkedin' %}
+                          <svg class="team-page__icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                            <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                          </svg>
+                        {% elseif platform == 'twitter' or platform == 'x' %}
+                          <svg class="team-page__icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                          </svg>
+                        {% else %}
+                          <svg class="team-page__icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                            <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm-2 16H8v-6h2v6zm-1-7h-.01A.98.98 0 019 8a.99.99 0 011 1c0 .552-.448 1-1 1zm10 7h-2v-3c0-1.5-.5-2-1.5-2S13 12.5 13 14v2h-2v-6h2v.5c.5-.5 1.5-1 2.5-1s2.5.5 2.5 2.5v4z"/>
+                          </svg>
+                        {% endif %}
+                      </a>
+                    {% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+
+              {# Card Body #}
+              <div class="team-page__card-body">
+                <h3 class="team-page__card-name" id="{{ member.html_id }}-name">
+                  {{ member.name }}
+                </h3>
+                <p class="team-page__card-position">{{ member.position }}</p>
+
+                {% if member.bio %}
+                  <p class="team-page__card-bio">{{ member.bio }}</p>
+                {% endif %}
+
+                <div class="team-page__card-actions">
+                  {% if member.email %}
+                    <a
+                      class="team-page__card-email"
+                      href="mailto:{{ member.email }}"
+                      aria-label="{{ 'Email @name'|t({'@name': member.name}) }}"
+                    >
+                      <svg class="team-page__icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
+                      </svg>
+                      <span>{{ member.email }}</span>
+                    </a>
+                  {% endif %}
+
+                  {# Optional CTA button #}
+                  {% if member.cta %}
+                    <a
+                      class="team-page__card-cta"
+                      href="{{ member.cta.url }}"
+                    >
+                      {{ member.cta.text }}
+                    </a>
+                  {% endif %}
+                </div>
+              </div>
+
+              {# Modal trigger button (progressive enhancement) #}
+              {% if show_modals %}
+                <button
+                  class="team-page__card-detail-toggle"
+                  type="button"
+                  aria-haspopup="dialog"
+                  aria-controls="{{ member.html_id }}-modal"
+                  data-member-id="{{ member.html_id }}"
+                >
+                  <span class="visually-hidden">{{ 'View details for @name'|t({'@name': member.name}) }}</span>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="16" x2="12" y2="12"/>
+                    <line x1="12" y1="8" x2="12.01" y2="8"/>
+                  </svg>
+                </button>
+              {% endif %}
+            </article>
+
+            {#
+              -----------------------------------------------------------------
+              Team Member Detail Modal (progressive enhancement)
+              -----------------------------------------------------------------
+              Only rendered when show_modals is TRUE.
+              Hidden by default, shown via JavaScript.
+              -----------------------------------------------------------------
+            #}
+            {% if show_modals %}
+              <div
+                id="{{ member.html_id }}-modal"
+                class="team-page__modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="{{ member.html_id }}-modal-title"
+                aria-hidden="true"
+                data-member-id="{{ member.html_id }}"
+                hidden
+              >
+                <div class="team-page__modal-overlay" data-modal-close></div>
+                <div class="team-page__modal-content" role="document">
+                  <button
+                    class="team-page__modal-close"
+                    type="button"
+                    aria-label="{{ 'Close dialog'|t }}"
+                    data-modal-close
+                  >
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                      <line x1="18" y1="6" x2="6" y2="18"/>
+                      <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                  </button>
+
+                  <div class="team-page__modal-layout">
+                    <div class="team-page__modal-image-section">
+                      {% if member.image %}
+                        <img
+                          class="team-page__modal-image"
+                          src="{{ member.image }}"
+                          alt="{{ member.image_alt }}"
+                          width="400"
+                          height="400"
+                        />
+                      {% else %}
+                        <div
+                          class="team-page__modal-initials team-page__card-initials--large"
+                          role="img"
+                          aria-label="{{ 'Profile picture for @name'|t({'@name': member.name}) }}"
+                        >
+                          <span aria-hidden="true">{{ member.initials }}</span>
+                        </div>
+                      {% endif %}
+                    </div>
+
+                    <div class="team-page__modal-details">
+                      <h2 class="team-page__modal-title" id="{{ member.html_id }}-modal-title">
+                        {{ member.name }}
+                      </h2>
+                      <p class="team-page__modal-position">{{ member.position }}</p>
+                      <p class="team-page__modal-department">{{ member.department }}</p>
+
+                      {% if member.bio %}
+                        <div class="team-page__modal-bio">
+                          {{ member.bio|nl2br }}
+                        </div>
+                      {% endif %}
+
+                      <div class="team-page__modal-contact">
+                        {% if member.email %}
+                          <a class="team-page__modal-link" href="mailto:{{ member.email }}">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                              <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
+                            </svg>
+                            {{ member.email }}
+                          </a>
+                        {% endif %}
+
+                        {% for platform, url in member.socials %}
+                          <a
+                            class="team-page__modal-link"
+                            href="{{ url }}"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                              <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0z"/>
+                            </svg>
+                            {{ '@name on @platform'|t({'@name': member.name, '@platform': platform|capitalize}) }}
+                          </a>
+                        {% endfor %}
+                      </div>
+
+                      {% if member.cta %}
+                        <a class="team-page__modal-cta" href="{{ member.cta.url }}">
+                          {{ member.cta.text }}
+                        </a>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  {#
+    -------------------------------------------------------------------------
+    Empty State
+    -------------------------------------------------------------------------
+    Shown when there are no team members to display.
+    -------------------------------------------------------------------------
+  #}
+  {% if members|length == 0 %}
+    <div class="team-page__empty" role="status">
+      <p class="team-page__empty-text">{{ 'No team members found.'|t }}</p>
+    </div>
+  {% endif %}
+</div>

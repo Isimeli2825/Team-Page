@@ -1,0 +1,15 @@
+# Team Page service definitions.
+#
+# Architecture decision:
+# We use a dedicated service class to manage team member data, fetching
+# from Drupal entities (team_member content type) via the EntityTypeManager.
+# This follows the Dependency Injection pattern and makes the service testable.
+#
+# The service implements TeamMemberServiceInterface so alternate
+# implementations can be swapped via services.yml overrides in settings.php.
+services:
+  team_page.team_member_service:
+    class: Drupal\team_page\Service\TeamMemberService
+    arguments:
+      - '@entity_type.manager'
+      - '@file_url_generator'

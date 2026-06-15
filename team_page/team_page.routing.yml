@@ -1,0 +1,23 @@
+# Team Page route.
+# Provides the public /team page accessible to authenticated and anonymous users
+# with the 'access content' permission.
+team_page.team:
+  path: '/team'
+  defaults:
+    _controller: '\Drupal\team_page\Controller\TeamPageController::build'
+    _title: 'Our Team'
+  requirements:
+    _permission: 'access content'
+  options:
+    no_cache: FALSE
+    parameters: {}
+
+# Admin configuration route (for future enhancement).
+# Uncomment when admin settings form is implemented.
+# team_page.settings:
+#   path: '/admin/config/services/team-page'
+#   defaults:
+#     _form: '\Drupal\team_page\Form\TeamPageSettingsForm'
+#     _title: 'Team Page Settings'
+#   requirements:
+#     _permission: 'administer site configuration'

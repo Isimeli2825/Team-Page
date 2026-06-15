@@ -1,0 +1,23 @@
+name: 'Team Page'
+type: module
+description: 'Provides a production-ready Team Page with responsive grid layout, department filtering, team member cards, and modal details. Built with MVC architecture following Drupal best practices.'
+package: 'Custom'
+core_version_requirement: ^10 || ^11
+php: 8.1
+dependencies:
+  - drupal:node
+
+
+# Configured permissions:
+#   - 'access content' (core) — view the /team page
+
+# Module provides:
+#   - Route: /team
+#   - Theme hook: team_page
+#   - Library: team_page/team-page (CSS + JS)
+#   - Service: team_page.team_member_service
+
+# Recommended optional modules for enhanced functionality:
+#   - drupal:views (for dynamic team member listing)
+#   - drupal:media (for media-managed profile images)
+#   - drupal:taxonomy (for department vocabulary management)

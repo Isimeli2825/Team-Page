@@ -1,0 +1,22 @@
+# Team Page library.
+# Attached to the /team page via the controller's render array.
+# Contains all CSS styling and progressive-enhancement JavaScript.
+team-page:
+  version: 1.0.0
+  css:
+    theme:
+      css/team-page.css: { weight: -10 }
+  js:
+    js/team-page.js: { attributes: { defer: true } }
+  dependencies:
+    - core/drupal
+    - core/drupalSettings
+    - core/once
+    - core/ckeditor5
+
+# Styling only — use when JavaScript filtering/modals are not desired.
+team-page-styling-only:
+  version: 1.0.0
+  css:
+    theme:
+      css/team-page.css: {}
